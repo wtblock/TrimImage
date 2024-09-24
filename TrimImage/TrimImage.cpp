@@ -55,8 +55,8 @@ bool Save( LPCTSTR lpszPathName, Gdiplus::Bitmap* pImage )
 	// use the extension member class to get the class ID of the file
 	CLSID clsid = m_Extension.ClassID;
 
-	// set the horizontal and vertical DPI to 600
-	pImage->SetResolution( 600.0f, 600.0f );
+	// set the horizontal and vertical DPI to match the original image
+	pImage->SetResolution( m_fHorizontalResolution, m_fVerticalResolution );
 
 	// save the image to the corrected folder
 	Status status = pImage->Save( T2CW( csPath ), &clsid, &param );
@@ -72,11 +72,17 @@ bool HandleAspectRatio()
 {
 	bool value = false;
 
+	// calculate the new width
+	m_uiNewWidth = m_uiOriginalWidth - m_uiLeft - m_uiRight;
+
+	// calculate the new height
+	m_uiNewHeight = m_uiOriginalHeight - m_uiTop - m_uiBottom;
+
 	// did the user request a fixed aspect ratio?
 	bool bAspect = GetProcessAspect();
 
 	// factor in the requested aspect ratio if requested
-	const float fRatio = GetRequestedAspectRatio();
+	const float fRequestedRatio = GetRequestedAspectRatio();
 
 	// aspect ratio of the original file
 	const float fOriginalRatio = GetOriginalAspectRatio();
@@ -84,11 +90,11 @@ bool HandleAspectRatio()
 	if ( bAspect )
 	{
 		// test for valid ratio value
-		if ( CHelper::NearlyEqual( fRatio, 0.0f ) )
+		if ( CHelper::NearlyEqual( fRequestedRatio, 0.0f ) )
 		{
 			bAspect = false;
-
-		} else if ( CHelper::NearlyEqual( fRatio, fOriginalRatio ) )
+		} 
+		else if ( CHelper::NearlyEqual( fRequestedRatio, fOriginalRatio ) )
 		{
 			bAspect = false;
 		}
@@ -99,37 +105,26 @@ bool HandleAspectRatio()
 		value = true;
 
 		// update the height, top and bottom values
-		if ( fRatio > fOriginalRatio )
+		if ( fRequestedRatio > fOriginalRatio )
 		{
 			// calculate new height based on the aspect ratio
 			// r = w / h
 			// h = w / r
-			m_uiNewHeight = UINT( float( m_uiOriginalWidth ) / fRatio );
+			m_uiNewHeight = UINT( float( m_uiOriginalWidth ) / fRequestedRatio );
 			const UINT uiDelta = m_uiOriginalHeight - m_uiNewHeight;
 			m_uiTop = uiDelta / 2;
 			m_uiBottom = m_uiTop;
-
-			// calculate the new width normally
-			m_uiNewWidth = m_uiOriginalWidth - m_uiLeft - m_uiRight;
-
-		} else // update the width, left and right values
+		} 
+		else // update the width, left and right values
 		{
 			// calculate new width based on the aspect ratio
-			m_uiNewWidth = UINT( float( m_uiOriginalHeight ) * fRatio );
+			// r = w / h
+			// w = r * h
+			m_uiNewWidth = UINT( float( m_uiOriginalHeight ) * fRequestedRatio );
 			const UINT uiDelta = m_uiOriginalWidth - m_uiNewWidth;
 			m_uiLeft = uiDelta / 2;
 			m_uiRight = m_uiLeft;
-
-			// calculate the new height normally
-			m_uiNewHeight = m_uiOriginalHeight - m_uiTop - m_uiBottom;
 		}
-	} else // normal dimension changes
-	{
-		// calculate the new width
-		m_uiNewWidth = m_uiOriginalWidth - m_uiLeft - m_uiRight;
-
-		// calculate the new height
-		m_uiNewHeight = m_uiOriginalHeight - m_uiTop - m_uiBottom;
 	}
 
 	return value;
@@ -173,6 +168,17 @@ bool ProcessImage( CString& csPath, CStdioFile& fout )
 
 		// get the height of the image
 		m_uiOriginalHeight = OriginalImage.GetHeight();
+
+		// remember the resolution (DPI) of the original image so the
+		// generated image can be set to the same resolution
+		m_fHorizontalResolution = OriginalImage.GetHorizontalResolution();
+		m_fVerticalResolution = OriginalImage.GetVerticalResolution();
+
+		// get the new width based on trimming parameters
+		m_uiNewWidth = m_uiOriginalWidth - m_uiLeft - m_uiRight;
+
+		// get the new width based on trimming parameters
+		m_uiNewHeight = m_uiOriginalHeight - m_uiLeft - m_uiRight;
 
 		// if the user specified an aspect ratio, other parameters
 		// like top and bottom or left and right can be modified
@@ -384,7 +390,8 @@ void Usage( CStdioFile& fOut )
 		_T( ".\n" )
 		_T( "A Windows command line program to trim image(s) using\n" )
 		_T( "  the given the number of pixels to be trimmed from\n" )
-		_T( "  each of the sides (top, bottom, left, and right).\n" )
+		_T( "  each of the sides (top, bottom, left, and right) or\n" )
+		_T( "  to change the aspect ratio (example a=3:2).\n" )
 		_T( ".\n" )
 	);
 
@@ -403,10 +410,12 @@ void Usage( CStdioFile& fOut )
 	(
 		_T( ".  pathname is the root of the tree to be scanned, but\n" )
 		_T( ".  may contain wild cards like the following:\n" )
-		_T( ".    \"c:\\Picture\\DisneyWorldMary2 *.JPG\"\n" )
+		_T( ".    \"c:\\Picture\\DisneyWorldMary2\\*.JPG\"\n" )
 		_T( ".  will process all files with that pattern, or\n" )
-		_T( ".    \"c:\\Picture\\DisneyWorldMary2 231.JPG\"\n" )
-		_T( ".  will process a single defined image file.\n" )
+		_T( ".    \"c:\\Picture\\DisneyWorldMary2\\231.JPG\"\n" )
+		_T( ".  will process a single defined image file, or\n" )
+		_T( ".    \"c:\\Picture\\DisneyWorldMary2\\\"\n" )
+		_T( ".  will recurse the folder and its sub-folders.\n" )
 		_T( ".  (NOTE: using wild cards will prevent recursion\n" )
 		_T( ".    into sub-folders because the folders will likely\n" )
 		_T( ".    not fall into the same pattern and therefore\n" )
@@ -422,10 +431,18 @@ void Usage( CStdioFile& fOut )
 		_T( ".  right is the number of pixels trimmed from the right.\n" )
 		_T( ".  aspect is the aspect ratio in the form of 'width:height'\n" )
 		_T( ".\n" )
-		_T( ".Example: \n" )
-		_T( ".  TrimImage . t=5 a=3:2\n" )
-		_T( ".will trim 5 pixels from the top and force the aspect ratio\n" )
-		_T( ".to become 3:2.\n" )
+		_T( ".Examples: \n" )
+		_T( ".  TrimImage . a=3:2\n" )
+		_T( ".    will force the aspect ratio to become 3:2\n" )
+		_T( ".  TrimImage . t=40 l=5\n" )
+		_T( ".    will trim 40 pixels from the top of the image\n" )
+		_T( ".    and 5 pixels from the left of the image.\n" )
+		_T( ".\n" )
+		_T( ".NOTE: \n" )
+		_T( ".  Trimming parameters can all be set at once, but\n" )
+		_T( ".  changing the aspect ratio should be done alone.\n" )
+		_T( ".  Aspect ratio causes its own trimming changes\n" )
+		_T( ".  and mixing the operations is unpredictable.\n" )
 		_T( ".\n" )
 	);
 } // Usage
@@ -537,6 +554,8 @@ int _tmain( int argc, TCHAR* argv[], TCHAR* envp[] )
 	// initialize intermediate values
 	m_uiOriginalWidth = 1;
 	m_uiOriginalHeight = 1;
+	m_fHorizontalResolution = 600.0f;
+	m_fVerticalResolution = 600.0f;
 	m_uiNewWidth = 1;
 	m_uiNewHeight = 1;
 	m_uiAspectWidth = 1;
