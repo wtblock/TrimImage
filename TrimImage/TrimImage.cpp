@@ -213,6 +213,35 @@ bool ProcessImage( CString& csPath, CStdioFile& fout )
 			m_uiLeft, m_uiTop, m_uiNewWidth, m_uiNewHeight, Gdiplus::UnitPixel
 		);
 
+		// the following code is triggered if all of the parameters
+		// amount to no change and is used to draw a grid on the 
+		// output image for scanner testing purposes
+		const bool bDrawGrid = 
+			bAspect == false && 
+			m_uiTop == 0 && m_uiBottom == 0 && 
+			m_uiLeft == 0 && m_uiRight == 0;
+
+		// draw a grid with an origin at the upper left using 50 pixel spacing
+		if ( bDrawGrid )
+		{
+			// Draw the grid
+			Pen pen( Color( 255, 255, 255, 255 ) ); // white color pen
+			int centerX = m_uiOriginalWidth / 2;
+			int centerY = m_uiOriginalHeight / 2;
+
+			// Draw vertical lines
+			for ( int x = 0; x < (int)m_uiOriginalWidth; x += 50 )
+			{
+				graphics.DrawLine( &pen, x, 0, x, (int)m_uiOriginalHeight );
+			}
+
+			// Draw horizontal lines
+			for ( int y = 0; y < (int)m_uiOriginalHeight; y += 50 )
+			{
+				graphics.DrawLine( &pen, 0, y, (int)m_uiOriginalWidth, y );
+			}
+		}
+
 		// save the image to the new path
 		value = Save( csPath, &trimmedBitmap );
 	}
