@@ -55,9 +55,6 @@ bool Save( LPCTSTR lpszPathName, Gdiplus::Bitmap* pImage )
 	// use the extension member class to get the class ID of the file
 	CLSID clsid = m_Extension.ClassID;
 
-	// set the horizontal and vertical DPI to match the original image
-	pImage->SetResolution( m_fHorizontalResolution, m_fVerticalResolution );
-
 	// save the image to the corrected folder
 	Status status = pImage->Save( T2CW( csPath ), &clsid, &param );
 
@@ -212,6 +209,25 @@ bool ProcessImage( CString& csPath, CStdioFile& fout )
 			&OriginalImage, Gdiplus::Rect( 0, 0, m_uiNewWidth, m_uiNewHeight ),
 			m_uiLeft, m_uiTop, m_uiNewWidth, m_uiNewHeight, Gdiplus::UnitPixel
 		);
+
+		// Preserve all metadata
+		const UINT uiPropertyCount = OriginalImage.GetPropertyCount();
+		PROPID* propIDs = new PROPID[ uiPropertyCount ];
+		OriginalImage.GetPropertyIdList( uiPropertyCount, propIDs );
+
+		// loop through the metadata properties of the original image and 
+		// copy them to the new image
+		for ( UINT i = 0; i < uiPropertyCount; ++i )
+		{
+			UINT size = OriginalImage.GetPropertyItemSize( propIDs[ i ] );
+			PropertyItem* pItem = (PropertyItem*)malloc( size );
+			OriginalImage.GetPropertyItem( propIDs[ i ], size, pItem );
+			trimmedBitmap.SetPropertyItem( pItem );
+			free( pItem );
+		}
+
+		// clean up
+		delete[] propIDs;
 
 		// the following code is triggered if all of the parameters
 		// amount to no change and is used to draw a grid on the 
