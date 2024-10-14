@@ -229,12 +229,17 @@ bool ProcessImage( CString& csPath, CStdioFile& fout )
 		// clean up
 		delete[] propIDs;
 
+		// did the user request a fixed aspect ratio? Even if they did,
+		// the changes to the trimming can all still be zero if
+		// the aspect requested is the same as the current aspect
+		const bool bProcessAspect = GetProcessAspect();
+
 		// the following code is triggered if all of the parameters
 		// amount to no change and is used to draw a grid on the 
 		// output image for scanner testing purposes
-		const bool bDrawGrid = 
-			bAspect == false && 
-			m_uiTop == 0 && m_uiBottom == 0 && 
+		const bool bDrawGrid =
+			bProcessAspect == false &&
+			m_uiTop == 0 && m_uiBottom == 0 &&
 			m_uiLeft == 0 && m_uiRight == 0;
 
 		// draw a grid with an origin at the upper left using 50 pixel spacing
